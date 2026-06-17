@@ -115,7 +115,28 @@
         'wss://tracker.fastcast.nz'
     ];
 
-    const client = new WebTorrent();
+    // Replace your old "new WebTorrent()" line with this config:
+const client = new WebTorrent({
+  tracker: {
+    rtcConfig: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        // Free global public TURN relay servers to bypass firewalls
+        {
+          urls: 'turn:relay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:relay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
+      ]
+    }
+  }
+});
 
     // DOM elements cache
     const dropZone = document.getElementById('dropZone');
