@@ -82,48 +82,43 @@
     </footer>
 
     <script>
-        // 1. FRESH STABLE WEBTORRENT TRACKER URLS
+        // 1. STABLE WEBTORRENT TRACKER URLS
         const myCustomAnnounceTrackers = [
             'wss://tracker.btorrent.xyz',
-            'wss://tracker.openwebtorrent.com',
-            'wss://tracker.files.fm:7073/announce',
-            'wss://tracker.gbitt.info:443/announce'
+            'wss://tracker.openwebtorrent.com'
         ];
 
-        // 2. WEBTORRENT CLIENT INITIALIZATION WITH FIREWALL-BYPASSING TURN
+        // 2. FIXED CREDENTIAL TYPOS (l replaced with 1)
         const client = new WebTorrent({
             tracker: {
                 rtcConfig: {
                     iceServers: [
-                      {
-        urls: "stun:stun.relay.metered.ca:80",
-      },
-      {
-        urls: "turn:global.relay.metered.ca:80",
-        username: "c02702f6324de09159dbc629",
-        credential: "nfELl4GMwJaT2Y21",
-      },
-      {
-        urls: "turn:global.relay.metered.ca:80?transport=tcp",
-        username: "c02702f6324de09159dbc629",
-        credential: "nfELl4GMwJaT2Y21",
-      },
-      {
-        urls: "turn:global.relay.metered.ca:443",
-        username: "c02702f6324de09159dbc629",
-        credential: "nfELl4GMwJaT2Y21",
-      },
-      {
-        urls: "turns:global.relay.metered.ca:443?transport=tcp",
-        username: "c02702f6324de09159dbc629",
-        credential: "nfELl4GMwJaT2Y21",
-      }
+                        { urls: "stun:stun.relay.metered.ca:80" },
+                        {
+                            urls: "turn:global.relay.metered.ca:80",
+                            username: "c02702f6324de09159dbc629",
+                            credential: "nfEL14GMwJaT2Y21"
+                        },
+                        {
+                            urls: "turn:global.relay.metered.ca:80?transport=tcp",
+                            username: "c02702f6324de09159dbc629",
+                            credential: "nfEL14GMwJaT2Y21"
+                        },
+                        {
+                            urls: "turn:global.relay.metered.ca:443",
+                            username: "c02702f6324de09159dbc629",
+                            credential: "nfEL14GMwJaT2Y21"
+                        },
+                        {
+                            urls: "turns:global.relay.metered.ca:443?transport=tcp",
+                            username: "c02702f6324de09159dbc629",
+                            credential: "nfEL14GMwJaT2Y21"
+                        }
                     ]
                 }
             }
         });
 
-        // UI Dom Bindings
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const shareOutput = document.getElementById('share-output');
@@ -139,13 +134,11 @@
         const peersText = document.getElementById('peers-text');
         const downloadBox = document.getElementById('download-trigger-box');
 
-        // File Browser Triggers
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) handleCreateSeed(e.target.files[0]);
         });
 
-        // Drag and Drop Interactivity 
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500'); });
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-500'));
         dropZone.addEventListener('drop', (e) => {
@@ -154,18 +147,16 @@
             if (e.dataTransfer.files.length > 0) handleCreateSeed(e.dataTransfer.files[0]);
         });
 
-        // 3. SEEDING ACTION (Passes explicit trackers down the execution line)
         function handleCreateSeed(file) {
             shareOutput.classList.remove('hidden');
             magnetText.innerText = "Processing file signature...";
 
             client.seed(file, { announce: myCustomAnnounceTrackers }, function (torrent) {
-                console.log('Seeding established successfully. Magnet URI:', torrent.magnetURI);
+                console.log('Seeding established successfully.');
                 magnetText.innerText = torrent.magnetURI;
             });
         }
 
-        // Copy Clipboard Utilities
         copyBtn.addEventListener('click', () => {
             navigator.clipboard.writeText(magnetText.innerText);
             copyBtn.innerText = "Copied!";
@@ -176,7 +167,7 @@
             }, 2000);
         });
 
-        // 4. DOWNLOADING ACTION (Listens across the exact same tracking servers)
+        // 3. SECURE SEED MANAGEMENT (Duplicate processing protector)
         connectBtn.addEventListener('click', () => {
             const userMagnetLink = magnetInput.value.trim();
             if (!userMagnetLink) return alert('Please enter a valid link first!');
@@ -185,41 +176,51 @@
             statusText.innerText = "Locating network seeds...";
             downloadBox.innerHTML = ''; 
 
-            client.add(userMagnetLink, { announce: myCustomAnnounceTrackers }, function (torrent) {
-                statusText.innerText = "Exchanging encryption keys...";
+            // Safeguard check to avoid duplicate download crash loops
+            let existingTorrent = client.get(userMagnetLink);
+            if (existingTorrent) {
+                attachTorrentEvents(existingTorrent);
+            } else {
+                client.add(userMagnetLink, { announce: myCustomAnnounceTrackers }, function (torrent) {
+                    attachTorrentEvents(torrent);
+                });
+            }
+        });
+
+        function attachTorrentEvents(torrent) {
+            statusText.innerText = "Exchanging encryption keys...";
+            
+            torrent.on('metadata', () => {
+                statusText.innerText = `Streaming: ${torrent.files[0].name}`;
+            });
+
+            torrent.on('download', () => {
+                const progress = (torrent.progress * 100).toFixed(1);
+                progressPercent.innerText = `${progress}%`;
+                progressBar.style.width = `${progress}%`;
+                speedText.innerText = `Speed: ${(client.downloadSpeed / 1024 / 1024).toFixed(2)} MB/s`;
+                peersText.innerText = `Peers: ${torrent.numPeers}`;
+            });
+
+            torrent.on('done', () => {
+                progressPercent.innerText = "100%";
+                progressBar.style.width = "100%";
+                statusText.innerText = "Download completely assembled!";
+                speedText.innerText = "Finished";
                 
-                torrent.on('metadata', () => {
-                    statusText.innerText = `Streaming: ${torrent.files[0].name}`;
-                });
-
-                torrent.on('download', () => {
-                    const progress = (torrent.progress * 100).toFixed(1);
-                    progressPercent.innerText = `${progress}%`;
-                    progressBar.style.width = `${progress}%`;
-                    speedText.innerText = `Speed: ${(client.downloadSpeed / 1024 / 1024).toFixed(2)} MB/s`;
-                    peersText.innerText = `Peers: ${torrent.numPeers}`;
-                });
-
-                torrent.on('done', () => {
-                    progressPercent.innerText = "100%";
-                    progressBar.style.width = "100%";
-                    statusText.innerText = "Download completely assembled!";
-                    speedText.innerText = "Finished";
-                    
-                    // Creates an instant automatic browser download download link for the file chunk array
-                    torrent.files[0].getBlobURL((err, url) => {
-                        if (err) return console.error(err);
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = url;
-                        downloadLink.download = torrent.files[0].name;
-                        downloadLink.innerText = "💾 Save File to Disk";
-                        downloadLink.className = "bg-green-600 hover:bg-green-500 text-xs font-bold px-4 py-2 rounded-lg text-white transition cursor-pointer";
-                        downloadBox.appendChild(downloadLink);
-                        downloadLink.click(); // Autotriggers save prompt
-                    });
+                torrent.files[0].getBlobURL((err, url) => {
+                    if (err) return console.error(err);
+                    downloadBox.innerHTML = ''; // Sanitize duplicate button appending
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = url;
+                    downloadLink.download = torrent.files[0].name;
+                    downloadLink.innerText = "💾 Save File to Disk";
+                    downloadLink.className = "bg-green-600 hover:bg-green-500 text-xs font-bold px-4 py-2 rounded-lg text-white transition cursor-pointer";
+                    downloadBox.appendChild(downloadLink);
+                    downloadLink.click(); 
                 });
             });
-        });
+        }
     </script>
 </body>
 </html>
